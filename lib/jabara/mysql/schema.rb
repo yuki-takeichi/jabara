@@ -98,6 +98,20 @@ module Jabara
           return ::Jabara.data(repr).is_a? ::DateTime
         end
       end
+      
+      class Float
+        def self.tag
+          :float
+        end
+
+        def parse(parse)
+          Float(data) # raises ArgumentError, TypeError
+        end
+
+        def validate(repr)
+          return ::Jabara.data(repr).is_a? ::Float
+        end
+      end
 
       class Schema
 
@@ -122,41 +136,18 @@ module Jabara
           return this.schema
         end
 
-        def self.build_from_create_stmt(crete_table_str)
+        def self.build_from_sql(query_str)
           parser = Scheman::Parsers::Mysql.new
-          create_stmt_hash = parser.parse(crete_table_str).to_hash[0][:create_table]
 
-          this = Builder.new
-          this.table_name create_stmt_hash[:name]
-          create_stmt_hash[:fields].each do |field_hash|
-            field_hash = field_hash[:field]
-            type = case field_hash[:type]
-            when "char", "varchar"
-              max = field_hash[:values][0]
-              if max.nil? then Char.new else Char.new max: max end
-            when "text"
-              Text.new
-            when "integer"
-              max = field_hash[:values][0]
-              if max.nil? then Integer.new else Integer.new max: max end
-            when "boolean"
-              Boolean.new
-            when "double"
-              Double.new
-            when "datetime"
-              DateTime.new
-            else
-              raise ArgumentError, 'invalid type'
-            end
+          create_stmt_hashs = parser.parse(query_str)
+            .to_hash
+            .select {|stmt| not stmt[:create_table].nil? }
+            .map{|stmt| stmt[:create_table] }
 
-            if field_hash[:qualifiers].include?({qualifier: {type: "not_null"}}) then
-              this.column field_hash[:name], type, :not_null
-            else
-              this.column field_hash[:name], type
-            end
-          end
-
-          return this.schema
+          create_stmt_hashs.map { |create_stmt_hash|
+            schema = stmt_to_schema(create_stmt_hash)
+            [schema.table_name, schema]
+          }.to_h
         end
 
         # 以下DSLメソッド。buildに渡すblock内で使う。
@@ -193,6 +184,47 @@ module Jabara
         def datetime
           DateTime.new
         end
+
+        def float
+          Float.new
+        end
+
+        private 
+
+        def self.stmt_to_schema(create_stmt_hash)
+          this = Builder.new
+          this.schema.table_name = create_stmt_hash[:name]
+          create_stmt_hash[:fields].each do |field_hash|
+            field_hash = field_hash[:field]
+            type = case field_hash[:type]
+            when "char", "varchar"
+              max = field_hash[:values][0]
+              if max.nil? then Char.new else Char.new max: max end
+            when "text"
+              Text.new
+            when "integer"
+              max = field_hash[:values][0]
+              if max.nil? then Integer.new else Integer.new max: max end
+            when "boolean"
+              Boolean.new
+            when "double", "float"
+              Float.new
+            when "datetime"
+              DateTime.new
+            else
+              raise ArgumentError, 'invalid type'
+            end
+
+            if field_hash[:qualifiers].include?({qualifier: {type: "not_null"}}) then
+              this.column field_hash[:name], type, :not_null
+            else
+              this.column field_hash[:name], type
+            end
+          end
+
+          this.schema
+        end
+
       end
 
     end
