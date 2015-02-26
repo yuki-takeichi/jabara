@@ -8,9 +8,9 @@ Gem::Specification.new do |spec|
   spec.version       = Jabara::VERSION
   spec.authors       = ["Yuki Takeichi"]
   spec.email         = ["yuki.takeichi@gmail.com"]
-  spec.summary       = %q{TODO: Write a short summary. Required.}
-  spec.description   = %q{TODO: Write a longer description. Optional.}
-  spec.homepage      = ""
+  spec.summary       = "A gem for pluggable data transformation."
+  spec.description   = "Nested data to flat, and flat data to nested."
+  spec.homepage      = "https://github.com/yuki-takeichi/jabara"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")
@@ -18,6 +18,7 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "scheman", "0.0.5"
   spec.add_development_dependency "bundler", "~> 1.7"
   spec.add_development_dependency "rake", "~> 10.0"
   spec.add_development_dependency "minitest"
