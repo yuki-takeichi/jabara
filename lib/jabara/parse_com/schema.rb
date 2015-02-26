@@ -130,8 +130,8 @@ module Jabara
         end
 
         def parse(data)
-          return ::Jabara.set([]) if hash.nil?
-          elems = ::Jabara::Transformer::KeyValue.new.to_entries(hash).map {|entry|
+          return ::Jabara.set([]) if data.nil?
+          elems = ::Jabara::Transformer::KeyValue.new.to_entries(data).map {|entry|
             if entry[:key].start_with? 'role:' then
               decode_acl_role_entry(entry[:key].gsub(/role:/, ''), entry[:value])
             else
