@@ -173,6 +173,28 @@ module Jabara
         end
       end
 
+      class Variants
+        def initialize(&block)
+          @variants = {}
+          instance_eval(&block)
+        end
+        def parse(data)
+          return ::Jabara.null if data.nil?
+          raise ArgumentError, 'data must be hash' unless data.is_a? ::Hash
+
+          reprs = @variants.map { |key, schema|
+            if not data[key].nil? then schema.decode(data[key]) else nil end
+          }.compact
+          ::Jabara.set(reprs)
+        end
+
+        # following methods are for DSL
+
+        def variant(key:, schema:)
+          @variants[key] = ::Jabara::ParseCom::Input.new(schema)
+        end
+      end
+
       class Schema
 
         attr_accessor :key_defs, :object_type, :id_key_name
@@ -275,6 +297,10 @@ module Jabara
 
         def json_string
           JSONString.new
+        end
+
+        def variants(&block)
+          Variants.new(&block)
         end
       end
     end
