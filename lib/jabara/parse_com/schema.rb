@@ -86,9 +86,9 @@ module Jabara
       end
 
       class String
-        def initialize(max: 1000, default: nil) # default = nil の場合はnullを許容する
+        def initialize(max: nil, default: nil) # default = nil の場合はnullを許容する
           raise TypeError, 'default must be string' unless default.is_a? ::String or default.nil?
-          raise TypeError, 'max must be integer' unless max.is_a? ::Integer
+          raise TypeError, 'max must be integer' unless max.is_a? ::Integer or max.nil?
           @max = max
           @default = default
         end
@@ -97,7 +97,8 @@ module Jabara
           return ::Jabara.null if data.nil? and @default.nil?
           return @default if data.nil?
           raise TypeError, 'data must be string' unless data.is_a? ::String or default.nil?
-          ::Jabara.primitive(:string, data.slice(0, @max))
+          data = data.slice(0, @max) unless @max.nil?
+          ::Jabara.primitive(:string, data)
         end
       end
 
@@ -111,7 +112,7 @@ module Jabara
 
       class Boolean
         def initialize(default: nil) # default = nil の場合はnullを許容する
-          raise ArgumentError, 'default must be true of false' unless [true, false].include? default
+          raise ArgumentError, 'default must be true of false' unless [true, false].include? default or default.nil?
           @default = default
         end
 
@@ -159,6 +160,19 @@ module Jabara
         end
       end
 
+      class JSONString
+        def initialize
+          @encoder = Yajl::Encoder.new
+        end
+        def parse(data)
+          return ::Jabara.null if data.nil?
+          raise ArgumentError, 'data must be hash or array' unless data.is_a? ::Hash or data.is_a? ::Array
+
+          json_str = @encoder.encode(data)
+          ::Jabara.primitive(:string, json_str)
+        end
+      end
+
       class Schema
 
         attr_accessor :key_defs, :object_type, :id_key_name
@@ -169,6 +183,13 @@ module Jabara
           @id_key_name = nil
         end
 
+        #def object_types
+        #  @key_defs.map { |key_string, schema|
+        #    return [] unless schema.is_a? Jabara::ParseCom::Schema::Object
+        #    schema.object_types # TODO impl it
+        #  }.flatten
+        #end
+
       end
 
       class Builder
@@ -176,7 +197,7 @@ module Jabara
         attr_reader :schema
 
         def self.build(&block)
-          this = Builder.new
+          this = self.new
           this.instance_eval(&block)
           return this.schema
         end
@@ -236,7 +257,7 @@ module Jabara
           DateTime.new default: default
         end
 
-        def string max: 1000, default: nil
+        def string max: nil, default: nil
           String.new max: max, default: default
         end
 
@@ -250,6 +271,10 @@ module Jabara
 
         def acl user_acl_object_type: ,role_acl_object_type:
           ACL.new(user_acl_object_type: user_acl_object_type, role_acl_object_type: role_acl_object_type)
+        end
+
+        def json_string
+          JSONString.new
         end
       end
     end

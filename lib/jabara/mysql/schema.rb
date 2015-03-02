@@ -131,7 +131,7 @@ module Jabara
         end
 
         def self.build(&block)
-          this = Builder.new
+          this = self.new
           this.instance_eval(&block)
           return this.schema
         end
@@ -192,7 +192,7 @@ module Jabara
         private 
 
         def self.stmt_to_schema(create_stmt_hash)
-          this = Builder.new
+          this = self.new
           this.schema.table_name = create_stmt_hash[:name]
           create_stmt_hash[:fields].each do |field_hash|
             field_hash = field_hash[:field]
