@@ -223,6 +223,14 @@ module Jabara
           this.instance_eval(&block)
           return this.schema
         end
+ 
+        def self.relation object_type
+          self.build do
+            type object_type
+            key 'owningId',  string
+            key 'relatedId', string
+          end
+        end
 
         def initialize
           @schema = Schema.new
