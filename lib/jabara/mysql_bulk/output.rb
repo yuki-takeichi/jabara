@@ -8,13 +8,13 @@ module Jabara
         @table_name = schema.table_name
         @schema = schema
         @tuple_size = tuple_size
+        @column_keys = @schema.columns.map { |column| column[:key] }
         reset_buffer
       end
 
       def encode(repr)
         data = ::Jabara.data(repr)
-        tuple_str = "(%s)" % @schema.columns.map { |column| 
-          key = column[:key]
+        tuple_str = "(%s)" % @column_keys.map { |key| 
           mysql_value(data[key])
         }.join(", ")
 
