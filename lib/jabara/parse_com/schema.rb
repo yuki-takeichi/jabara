@@ -252,6 +252,10 @@ module Jabara
           raise ArgumentError, 'key_name must be string' unless key_string.is_a? ::String
           (@schema.key_defs)[key_string] = type
         end
+
+        def schema(&block)
+          self.build(&block)
+        end
         
         # TODO
         #def object
