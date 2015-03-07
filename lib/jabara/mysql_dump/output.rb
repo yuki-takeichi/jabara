@@ -1,4 +1,5 @@
 require 'jabara/data'
+require 'jabara/mysql/output'
 
 module Jabara
   module MySQLDump
