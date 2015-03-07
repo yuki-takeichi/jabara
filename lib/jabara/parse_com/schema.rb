@@ -2,6 +2,7 @@ require 'jabara/data'
 require 'jabara/transformer/key_value'
 
 require 'date'
+require 'yajl'
 
 module Jabara
   module ParseCom
@@ -21,14 +22,20 @@ module Jabara
       #  end
       #end
 
-      class TimeStamp # Parseが自動生成するカラム (createdAt, updatedAt)
+      class PrimitiveParser
+        def object_types
+          []
+        end
+      end
+
+      class TimeStamp < PrimitiveParser # Parseが自動生成するカラム (createdAt, updatedAt)
         def parse(data)
           datetime = ::DateTime.iso8601(data)
           ::Jabara.primitive(:datetime, datetime)
         end
       end
 
-      class Integer
+      class Integer < PrimitiveParser
         def initialize(default: nil) # default = nil の場合はnullを許容する
           raise TypeError, 'default must be integer' unless default.is_a? ::Integer or default.nil?
           @default = default
@@ -43,7 +50,7 @@ module Jabara
         end
       end
 
-      class Float
+      class Float < PrimitiveParser
         def initialize(default: nil) # default = nil の場合はnullを許容する
           raise TypeError, 'default must be integer' unless default.is_a? ::Float or default.nil?
           @default = default
@@ -58,13 +65,13 @@ module Jabara
         end
       end
 
-      class ObjectId
+      class ObjectId < PrimitiveParser
         def parse(data)
           ::Jabara.primitive(:string, data)
         end
       end
 
-      class File
+      class File < PrimitiveParser
         def parse(data)
           return ::Jabara.null if data.nil?
           raise ArgumentError, 'File object is collapsed' if data['url'].nil?
@@ -72,7 +79,7 @@ module Jabara
         end
       end
 
-      class DateTime
+      class DateTime < PrimitiveParser
         def initialize(default: nil) # default = nil の場合はnullを許容する
           raise TypeError, 'default must be datetime' unless default.is_a? ::DateTime or default.nil?
           @default = default
@@ -85,7 +92,7 @@ module Jabara
         end
       end
 
-      class String
+      class String < PrimitiveParser
         def initialize(max: nil, default: nil) # default = nil の場合はnullを許容する
           raise TypeError, 'default must be string' unless default.is_a? ::String or default.nil?
           raise TypeError, 'max must be integer' unless max.is_a? ::Integer or max.nil?
@@ -102,7 +109,7 @@ module Jabara
         end
       end
 
-      class Pointer
+      class Pointer < PrimitiveParser
         def parse(data)
           return ::Jabara.null if data.nil?
           raise ArgumentError, 'pointer object is collapsed' if data['objectId'].nil?
@@ -110,7 +117,7 @@ module Jabara
         end
       end
 
-      class Boolean
+      class Boolean < PrimitiveParser
         def initialize(default: nil) # default = nil の場合はnullを許容する
           raise ArgumentError, 'default must be true of false' unless [true, false].include? default or default.nil?
           @default = default
@@ -143,6 +150,10 @@ module Jabara
           return ::Jabara.set(elems)
         end
 
+        def object_types
+          [@user_acl_object_type, @role_acl_object_type]
+        end
+
         def decode_acl_user_entry(user_object_id, acl_permission)
           data = {}
           data['userObjectId'] = ::Jabara.primitive(:string, user_object_id)
@@ -160,10 +171,11 @@ module Jabara
         end
       end
 
-      class JSONString
+      class JSONString < PrimitiveParser
         def initialize
           @encoder = Yajl::Encoder.new
         end
+
         def parse(data)
           return ::Jabara.null if data.nil?
           raise ArgumentError, 'data must be hash or array' unless data.is_a? ::Hash or data.is_a? ::Array
@@ -178,6 +190,7 @@ module Jabara
           @variants = {}
           instance_eval(&block)
         end
+
         def parse(data)
           return ::Jabara.null if data.nil?
           raise ArgumentError, 'data must be hash' unless data.is_a? ::Hash
@@ -188,10 +201,20 @@ module Jabara
           ::Jabara.set(reprs)
         end
 
+        def object_types
+          @variants.map { |_, input|
+            [input.schema.object_type] + input.schema.inner_object_types
+          }.flatten
+        end
+
         # following methods are for DSL
 
         def variant(key:, schema:)
           @variants[key] = ::Jabara::ParseCom::Input.new(schema)
+        end
+
+        def schema(&block)
+          Builder.build(&block)
         end
       end
 
@@ -205,12 +228,11 @@ module Jabara
           @id_key_name = nil
         end
 
-        #def object_types
-        #  @key_defs.map { |key_string, schema|
-        #    return [] unless schema.is_a? Jabara::ParseCom::Schema::Object
-        #    schema.object_types # TODO impl it
-        #  }.flatten
-        #end
+        def inner_object_types
+          @key_defs.map { |key_string, schema|
+            schema.object_types
+          }.flatten
+        end
 
       end
 
@@ -253,10 +275,6 @@ module Jabara
           (@schema.key_defs)[key_string] = type
         end
 
-        def schema(&block)
-          self.build(&block)
-        end
-        
         # TODO
         #def object
         #  Object.new

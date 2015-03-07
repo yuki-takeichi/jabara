@@ -3,6 +3,7 @@ require 'jabara/data'
 module Jabara
   module ParseCom
     class Input
+      attr_reader :schema
       def initialize(parse_com_schema)
         @schema = parse_com_schema
       end
