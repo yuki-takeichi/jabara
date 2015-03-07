@@ -40,7 +40,7 @@ module Jabara
         when :string
           quote(data)
         when :boolean
-          data
+          if data == true then '1' else '0' end
         when :object, :array
           raise ArgumentError, "Can't accept nested object or array!"
         else
