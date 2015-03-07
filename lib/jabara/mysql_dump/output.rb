@@ -28,7 +28,12 @@ module Jabara
           @file.write(@buf)
           data = ::Jabara.data(object_repr)
           @buf = @column_keys.map { |key|
-            mysql_value(data[key])
+
+            begin
+              mysql_value(data[key])
+            rescue => e
+              raise e.class, e.message + ' (for key: %s)' % key
+            end
           }.join(@field_delimiter) + @line_delimiter
         rescue => e
           cleanup
