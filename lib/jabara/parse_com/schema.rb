@@ -3,6 +3,7 @@ require 'jabara/transformer/key_value'
 
 require 'date'
 require 'yajl'
+require 'uri'
 
 module Jabara
   module ParseCom
@@ -33,6 +34,13 @@ module Jabara
           datetime = ::DateTime.iso8601(data)
           ::Jabara.primitive(:datetime, datetime)
         end
+
+        def reverse(repr) # TODO schema と parser は分離しないと
+          raise ArgumentError, 'repr must be datetime' unless Jabara.tag(repr) == :boolean
+          data = Jabara.data(repr)
+          raise ArgumentError, 'timestamp field not allowed to be null' if data.nil?
+          data.iso8601
+        end
       end
 
       class Integer < PrimitiveParser
@@ -48,6 +56,13 @@ module Jabara
           raise TypeError, 'default must be integer' unless data.is_a? ::Integer
           ::Jabara.primitive(:integer, data)
         end
+
+        def reverse(repr)
+          return nil if repr.nil? and @default.nil?
+          return @default if repr.nil?
+          raise ArgumentError, 'repr must be integer' unless Jabara.tag(repr) == :integer
+          Jabara.data(repr)
+        end
       end
 
       class Float < PrimitiveParser
@@ -61,13 +76,28 @@ module Jabara
           return ::Jabara.primitive(:float, @default) if data.nil?
 
           raise TypeError, 'default must be float' unless data.is_a? ::Float
-          ::Jabara.primitive(:float, data)
+          Jabara.primitive(:float, data)
+        end
+
+        def reverse(repr)
+          return nil if repr.nil? and @default.nil?
+          return @default if repr.nil?
+          raise ArgumentError, 'repr must be float' unless Jabara.tag(repr) == :float
+          Jabara.data(repr)
         end
       end
 
       class ObjectId < PrimitiveParser
         def parse(data)
-          ::Jabara.primitive(:string, data)
+          Jabara.primitive(:string, data)
+        end
+
+        def reverse(repr)
+          Jabara.data(repr)
+        end
+
+        def reverse_validate(repr)
+          raise ArgumentError, 'repr must not be nil' if repr.nil?
         end
       end
 
@@ -76,6 +106,20 @@ module Jabara
           return ::Jabara.null if data.nil?
           raise ArgumentError, 'File object is collapsed' if data['url'].nil?
           ::Jabara.primitive(:string, data['url'])
+        end
+
+        def reverse(repr)
+          return nil if repr.nil?
+          name = repr.split('/').last
+          url = Jabara.data(repr)
+          {'__type' => 'File',
+           'name' => name,
+           'url' => url}
+        end
+
+        def reverse_validate(repr)
+          raise ArgumentError, 'repr must be string' unless Jabara.tag(repr) == :string
+          raise ArgumentError, 'not valid parse file url' unless Jabara.data(repr).start_with?('http://files.parsetfss.com/')
         end
       end
 
@@ -89,6 +133,17 @@ module Jabara
           return ::Jabara.null if data.nil? and @default.nil?
           raise ArgumentError, 'datetime object is collapsed' if data['iso'].nil?
           ::Jabara.primitive(:datetime, ::DateTime.iso8601(data['iso']))
+        end
+
+        def reverse(repr)
+          return nil if repr.nil? and @default.nil?
+          data = if repr.nil? then @default else Jabara.data(repr) end
+          {'__type' => 'Date',
+           'iso' => data.iso8601}
+        end
+
+        def reverse_validate(repr)
+          raise ArgumentError, 'repr must be datetime' unless Jabara.tag(repr) == :datetime
         end
       end
 
@@ -115,6 +170,18 @@ module Jabara
           raise ArgumentError, 'pointer object is collapsed' if data['objectId'].nil?
           ::Jabara.primitive(:string, data['objectId'])
         end
+
+        def reverse(repr)
+          object_id = Jabara.data(repr)
+          {'__type' => 'Pointer',
+           'className' => className, # TODO
+           'objectId' => object_id}
+        end
+
+        def reverse_validate(repr)
+          raise ArgumentError, 'data must be string' unless Jabara.tag(repr) == :string
+          raise ArgumentError, 'data must be valid object id' if /[0-9a-zA-Z]{10}/.match(Jabara.data(repr)).nil?
+        end
       end
 
       class Boolean < PrimitiveParser
@@ -129,9 +196,16 @@ module Jabara
           raise TypeError, 'data must be true or false' unless [true, false].include? data
           ::Jabara.primitive(:boolean, data)
         end
+
+        def reverse(repr)
+          return nil if repr.nil? and @default.nil?
+          return @default if repr.nil?
+          raise ArgumentError, 'repr must be boolean' unless Jabara.tag(repr) == :boolean
+          Jabara.data(repr)
+        end
       end
 
-      class ACL
+      class ACL # 抽象化が破れているので、中身のobjectを触る時はinput or outputを使う (or その構造をリファクタする)
         def initialize user_acl_object_type: , role_acl_object_type:
           @user_acl_object_type = user_acl_object_type
           @role_acl_object_type = role_acl_object_type
@@ -141,7 +215,7 @@ module Jabara
           return ::Jabara.set([]) if data.nil?
           elems = ::Jabara::Transformer::KeyValue.new.to_entries(data).map {|entry|
             if entry[:key].start_with? 'role:' then
-              decode_acl_role_entry(entry[:key].gsub(/role:/, ''), entry[:value])
+              decode_acl_role_entry(entry[:key].gsub(/^role:/, ''), entry[:value])
             else
               decode_acl_user_entry(entry[:key], entry[:value])
             end
@@ -169,11 +243,36 @@ module Jabara
           data['write'] = ::Jabara.primitive(:boolean, acl_permission['write'] || false)
           ::Jabara.object(@role_acl_object_type, data)
         end
+
+        def reverse(repr)
+          raise ArgumentError, 'repr must be set' unless Jabara.tag(repr) == :set
+          raise ArgumentError, 'inner data must be array' unless Jabara(data).is_a? ::Array
+          Jabara.data(repr).map {|repr|
+            raise ArgumentError, 'inner repr must be object' unless Jabara.tag(repr) == :object
+            data = Jabara.data(repr)
+
+            key = case Jabara.object_type(repr)
+            when @user_acl_object_type
+              data['userObjectId']
+            when @role_acl_object_type
+              'role:' + data['roleName']
+            else
+              raise ArgumentError, 'inner repr must have valid object type'
+            end
+
+            value = {}
+            value['read'] = data['read'] unless data['read'].nil?
+            value['write'] = data['write'] unless data['write'].nil?
+
+            if value.empty? then [] else [key, value] end
+          }.to_h
+        end
       end
 
       class JSONString < PrimitiveParser
         def initialize
           @encoder = Yajl::Encoder.new
+          @paraser = Yajl::Parser.new
         end
 
         def parse(data)
@@ -181,7 +280,12 @@ module Jabara
           raise ArgumentError, 'data must be hash or array' unless data.is_a? ::Hash or data.is_a? ::Array
 
           json_str = @encoder.encode(data)
-          ::Jabara.primitive(:string, json_str)
+          Jabara.primitive(:string, json_str)
+        end
+
+        def reverse(repr)
+          raise ArgumentError, 'repr must be string' unless Jabara.tag(repr) == :string
+          @parser.parse(Jabara.data(repr))
         end
       end
 
@@ -205,6 +309,15 @@ module Jabara
           @variants.map { |_, input|
             [input.schema.object_type] + input.schema.inner_object_types
           }.flatten
+        end
+
+        def reverse(repr)
+          raise ArgumentError, 'repr must be set' unless Jabara.tag(repr) == :set
+          Jabara.data(repr).map {|repr|
+            key = Jabara.object_type(repr)
+            data = Jabara.data(repr)
+            [key, @variants[key].reverse(data)] # TODO reverseが使えない...
+          }.to_h
         end
 
         # following methods are for DSL
