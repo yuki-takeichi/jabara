@@ -45,14 +45,14 @@ module Jabara
           return ::Jabara.null if data.nil? and @default.nil?
           return ::Jabara.primitive(:integer, @default) if data.nil?
 
-          raise TypeError, 'default must be integer' unless data.is_a? ::Integer
+          raise TypeError, 'data must be integer' unless data.is_a? ::Integer
           ::Jabara.primitive(:integer, data)
         end
       end
 
       class Float < PrimitiveParser
         def initialize(default: nil) # default = nil の場合はnullを許容する
-          raise TypeError, 'default must be integer' unless default.is_a? ::Float or default.nil?
+          raise TypeError, 'default must be float' unless default.is_a? ::Float or default.nil?
           @default = default
         end
 
@@ -60,7 +60,7 @@ module Jabara
           return ::Jabara.null if data.nil? and @default.nil?
           return ::Jabara.primitive(:float, @default) if data.nil?
 
-          raise TypeError, 'default must be float' unless data.is_a? ::Float
+          raise TypeError, 'data must be float' unless data.is_a? ::Float
           ::Jabara.primitive(:float, data)
         end
       end
