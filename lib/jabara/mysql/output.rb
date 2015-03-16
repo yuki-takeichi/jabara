@@ -4,7 +4,8 @@ module Jabara
   module MySQL
     class Output
 
-      def initialize
+      def initialize(null_value:'null')
+        @null_value = null_value
       end
 
       def encode(object_repr)
@@ -30,7 +31,7 @@ module Jabara
         tag = ::Jabara.tag(repr)
         case tag
         when :null
-          'null'
+          @null_value
         when :integer
           data
         when :float

@@ -21,6 +21,8 @@ module Jabara
         @column_keys = @schema.columns.map { |column| column[:key] }
         @file = File.open(@out_path, 'w')
         @buf = ''
+
+        super(null_value:'\N')
       end
 
       def write(object_repr)
@@ -32,7 +34,7 @@ module Jabara
             begin
               mysql_value(data[key])
             rescue => e
-              raise e.class, e.message + ' (for key: %s)' % key
+              raise e.class, e.message + ' (for key: %s)' % key # TODO e.message is bad
             end
           }.join(@field_delimiter) + @line_delimiter
         rescue => e
