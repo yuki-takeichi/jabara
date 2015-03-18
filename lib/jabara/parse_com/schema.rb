@@ -2,7 +2,7 @@ require 'jabara/data'
 require 'jabara/transformer/key_value'
 
 require 'date'
-require 'yajl'
+require 'multi_json'
 
 module Jabara
   module ParseCom
@@ -172,15 +172,11 @@ module Jabara
       end
 
       class JSONString < PrimitiveParser
-        def initialize
-          @encoder = Yajl::Encoder.new
-        end
-
         def parse(data)
           return ::Jabara.null if data.nil?
           raise ArgumentError, 'data must be hash or array' unless data.is_a? ::Hash or data.is_a? ::Array
 
-          json_str = @encoder.encode(data)
+          json_str = MultiJson.dump(data)
           ::Jabara.primitive(:string, json_str)
         end
       end
