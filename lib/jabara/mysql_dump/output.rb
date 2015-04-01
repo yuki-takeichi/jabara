@@ -30,7 +30,6 @@ module Jabara
           @file.write(@buf)
           data = ::Jabara.data(object_repr)
           @buf = @column_keys.map { |key|
-
             begin
               mysql_value(data[key])
             rescue => e
@@ -44,7 +43,7 @@ module Jabara
       end
 
       def terminate
-        @file.write(@buf.chomp(@line_delimiter))
+        @file.write(@buf)
         @file.close
       end
 
